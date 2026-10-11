@@ -1,0 +1,26 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // STEP 1 ONLY: users can create/read their own immutable private profile.
+    // All future items, claims, admin records are denied until their rules exist.
+    match /privateProfiles/{uid} {
+      allow read: if request.auth != null && request.auth.uid == uid;
+      allow create: if request.auth != null && request.auth.uid == uid
+        && request.resource.data.keys().hasAll([
+          'name', 'phone', 'email', 'consentVersion', 'consentAt', 'createdAt'])
+        && request.resource.data.keys().hasOnly([
+          'name', 'phone', 'email', 'consentVersion', 'consentAt', 'createdAt'])
+        && request.resource.data.name is string
+        && request.resource.data.name.size() > 0
+        && request.resource.data.name.size() <= 80
+        && request.resource.data.phone is string
+        && request.resource.data.phone.matches('^[0-9]{8}$')
+        && request.resource.data.email == request.auth.token.email
+        && request.resource.data.consentVersion == 'mvp-v1'
+        && request.resource.data.consentAt == request.time
+        && request.resource.data.createdAt == request.time;
+      allow update, delete: if false;
+    }
+    match /{document=**} { allow read, write: if false; }
+  }
+}
