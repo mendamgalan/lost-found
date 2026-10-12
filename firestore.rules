@@ -1,8 +1,6 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
-    // STEP 1 ONLY: users can create/read their own immutable private profile.
-    // All future items, claims, admin records are denied until their rules exist.
     match /privateProfiles/{uid} {
       allow read: if request.auth != null && request.auth.uid == uid;
       allow create: if request.auth != null && request.auth.uid == uid
@@ -19,6 +17,57 @@ service cloud.firestore {
         && request.resource.data.consentVersion == 'mvp-v1'
         && request.resource.data.consentAt == request.time
         && request.resource.data.createdAt == request.time;
+      allow update, delete: if false;
+    }
+    function hasProfile() {
+      return request.auth != null
+        && exists(/databases/$(database)/documents/privateProfiles/$(request.auth.uid));
+    }
+    function text(value, maximum) {
+      return value is string && value.size() > 0
+        && value.size() <= maximum && value.matches('(?s).*[^\\s].*');
+    }
+    match /items/{id} {
+      allow read: if request.auth != null
+        && (resource.data.isHidden == false || resource.data.ownerId == request.auth.uid);
+      allow create: if hasProfile()
+        && request.resource.data.keys().hasAll([
+          'ownerId', 'type', 'title', 'category', 'description', 'eventDate',
+          'district', 'placeName', 'status', 'isHidden', 'createdAt'])
+        && request.resource.data.keys().hasOnly([
+          'ownerId', 'type', 'title', 'category', 'description', 'eventDate',
+          'district', 'placeName', 'status', 'isHidden', 'createdAt'])
+        && request.resource.data.ownerId == request.auth.uid
+        && request.resource.data.type in ['lost', 'found']
+        && text(request.resource.data.title, 120)
+        && request.resource.data.category in [
+          'Утас', 'Түрийвч', 'Түлхүүр', 'Бичиг баримт', 'Цүнх', 'Электрон төхөөрөмж', 'Бусад']
+        && text(request.resource.data.description, 2000)
+        && request.resource.data.eventDate is timestamp
+        && request.resource.data.eventDate <= request.time
+        && request.resource.data.district in [
+          'Баянгол', 'Баянзүрх', 'Сүхбаатар', 'Сонгинохайрхан',
+          'Хан-Уул', 'Чингэлтэй', 'Багануур', 'Багахангай', 'Налайх']
+        && text(request.resource.data.placeName, 200)
+        && request.resource.data.status == 'open'
+        && request.resource.data.isHidden == false
+        && request.resource.data.createdAt == request.time
+        && !exists(/databases/$(database)/documents/itemSecrets/$(id))
+        && getAfter(/databases/$(database)/documents/itemSecrets/$(id)).data.ownerId == request.auth.uid
+        && getAfter(/databases/$(database)/documents/itemSecrets/$(id)).data.createdAt == request.time;
+      allow update, delete: if false;
+    }
+    match /itemSecrets/{id} {
+      allow read: if request.auth != null && resource.data.ownerId == request.auth.uid;
+      allow create: if hasProfile()
+        && request.resource.data.keys().hasAll(['ownerId', 'secretDetail', 'createdAt'])
+        && request.resource.data.keys().hasOnly(['ownerId', 'secretDetail', 'createdAt'])
+        && request.resource.data.ownerId == request.auth.uid
+        && text(request.resource.data.secretDetail, 1000)
+        && request.resource.data.createdAt == request.time
+        && !exists(/databases/$(database)/documents/items/$(id))
+        && getAfter(/databases/$(database)/documents/items/$(id)).data.ownerId == request.auth.uid
+        && getAfter(/databases/$(database)/documents/items/$(id)).data.createdAt == request.time;
       allow update, delete: if false;
     }
     match /{document=**} { allow read, write: if false; }

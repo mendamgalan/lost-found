@@ -2,6 +2,8 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 
+import '../items/create_item_page.dart';
+
 class ProfilePage extends StatefulWidget {
   const ProfilePage({super.key, required this.user});
   final User user;
@@ -128,6 +130,18 @@ class _ProfilePageState extends State<ProfilePage> {
               ListTile(
                 leading: const Icon(Icons.phone_outlined),
                 title: Text(data['phone'] as String),
+              ),
+              const SizedBox(height: 16),
+              FilledButton.icon(
+                onPressed: () {
+                  Navigator.of(context).push(
+                    MaterialPageRoute<bool>(
+                      builder: (_) => const CreateItemPage(),
+                    ),
+                  );
+                },
+                icon: const Icon(Icons.add),
+                label: const Text('Зар нэмэх'),
               ),
               const Card(
                 child: Padding(
