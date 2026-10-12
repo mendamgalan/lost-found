@@ -2,6 +2,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 
+import '../items/items_page.dart';
 import '../items/create_item_page.dart';
 
 class ProfilePage extends StatefulWidget {
@@ -142,6 +143,16 @@ class _ProfilePageState extends State<ProfilePage> {
                 },
                 icon: const Icon(Icons.add),
                 label: const Text('Зар нэмэх'),
+              ),
+              const SizedBox(height: 12),
+              OutlinedButton.icon(
+                onPressed: () {
+                  Navigator.of(context).push(
+                    MaterialPageRoute<void>(builder: (_) => const ItemsPage()),
+                  );
+                },
+                icon: const Icon(Icons.view_list_outlined),
+                label: const Text('Зарууд харах'),
               ),
               const Card(
                 child: Padding(
