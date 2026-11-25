@@ -13,6 +13,8 @@ class Item {
   final String status;
   final bool isHidden;
   final DateTime? createdAt;
+  final List<String> imagePaths;
+  final String? verifiedClaimId;
 
   const Item({
     required this.id,
@@ -27,6 +29,8 @@ class Item {
     required this.status,
     required this.isHidden,
     required this.createdAt,
+    this.imagePaths = const [],
+    this.verifiedClaimId,
   });
 
   factory Item.fromFirestore(DocumentSnapshot<Map<String, dynamic>> document) {
@@ -49,6 +53,8 @@ class Item {
 
     return Item(
       id: document.id,
+      imagePaths: List<String>.from(data['imagePaths'] as List? ?? []),
+      verifiedClaimId: data['verifiedClaimId'] as String?,
       ownerId: data['ownerId'] as String,
       type: data['type'] as String,
       title: data['title'] as String,
@@ -63,6 +69,22 @@ class Item {
     );
   }
 
+  factory Item.fromJson(Map<String, dynamic> d) => Item(
+    id: d['id'] as String,
+    ownerId: d['ownerId'] as String,
+    type: d['type'] as String,
+    title: d['title'] as String,
+    category: d['category'] as String,
+    description: d['description'] as String,
+    eventDate: DateTime.parse(d['eventDate'] as String),
+    district: d['district'] as String,
+    placeName: d['placeName'] as String,
+    status: d['status'] as String,
+    isHidden: d['isHidden'] == true,
+    createdAt: DateTime.tryParse(d['createdAt']?.toString() ?? ''),
+    imagePaths: List<String>.from(d['imagePaths'] as List? ?? []),
+    verifiedClaimId: d['verifiedClaimId'] as String?,
+  );
   Map<String, dynamic> toFirestore() {
     return {
       'ownerId': ownerId,

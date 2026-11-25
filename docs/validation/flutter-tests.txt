@@ -1,0 +1,15 @@
+00:00 +0: loading /workspace/scratch/976983933668/lost-found/test/item_filter_test.dart
+00:00 +0: /workspace/scratch/976983933668/lost-found/test/item_filter_test.dart: case-insensitive words match across title and location
+00:00 +1: /workspace/scratch/976983933668/lost-found/test/item_filter_test.dart: category, district and status filters combine
+00:00 +2: /workspace/scratch/976983933668/lost-found/test/item_filter_test.dart: blank query does not discard items and original list is unchanged
+00:00 +3: /workspace/scratch/976983933668/lost-found/test/item_card_test.dart: card remains tappable at narrow width and large text
+00:01 +4: /workspace/scratch/976983933668/lost-found/test/create_item_page_test.dart: all required fields validate even after scrolling to submit
+00:01 +5: /workspace/scratch/976983933668/lost-found/test/workflow_ui_test.dart: server list paginates and merges next results
+00:01 +6: /workspace/scratch/976983933668/lost-found/test/auth_page_test.dart: auth validates locally and switches to registration
+00:02 +7: /workspace/scratch/976983933668/lost-found/test/auth_page_test.dart: auth validates locally and switches to registration
+00:02 +8: /workspace/scratch/976983933668/lost-found/test/auth_page_test.dart: auth validates locally and switches to registration
+00:02 +9: /workspace/scratch/976983933668/lost-found/test/auth_page_test.dart: auth validates locally and switches to registration
+00:02 +10: /workspace/scratch/976983933668/lost-found/test/workflow_ui_test.dart: handover validates location and explicit future date
+00:02 +11: /workspace/scratch/976983933668/lost-found/test/workflow_ui_test.dart: handover validates location and explicit future date
+00:02 +12: /workspace/scratch/976983933668/lost-found/test/workflow_ui_test.dart: password change checks current and matching confirmation
+00:03 +13: All tests passed!

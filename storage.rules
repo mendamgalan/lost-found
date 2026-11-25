@@ -1,0 +1,20 @@
+rules_version = '2';
+service firebase.storage {
+ match /b/{bucket}/o {
+  function signed(){return request.auth != null;}
+  function admin(){return signed() && ('admin' in request.auth.token) && request.auth.token.admin==true;}
+  function image(){return request.resource != null && request.resource.size < 5*1024*1024 && request.resource.contentType.matches('image/(jpeg|png)');}
+  match /items/{uid}/{itemId}/{file} {
+   allow create: if signed() && request.auth.uid==uid && image();
+   allow update,delete: if false;
+   allow read: if (signed() && request.auth.uid==uid) || admin() || (firestore.exists(/databases/(default)/documents/items/$(itemId)) && firestore.get(/databases/(default)/documents/items/$(itemId)).data.isHidden==false);
+  }
+  match /claims/{uid}/{claimId}/{file} {
+   allow create: if signed() && request.auth.uid==uid && image();
+   allow update,delete: if false;
+   allow read: if signed() && (request.auth.uid==uid || admin() || (firestore.exists(/databases/(default)/documents/claims/$(claimId)) && firestore.get(/databases/(default)/documents/claims/$(claimId)).data.ownerId==request.auth.uid));
+  }
+  match /exports/{uid}/{file} {allow read: if admin() && request.auth.uid==uid;allow write: if false;}
+  match /{path=**} {allow read,write: if false;}
+ }
+}

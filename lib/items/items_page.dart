@@ -1,33 +1,53 @@
-import 'package:cloud_firestore/cloud_firestore.dart';
+import 'dart:async';
+
+// ignore: deprecated_member_use
 import 'package:flutter/material.dart';
 
-import 'create_item_page.dart';
+import '../core/ui.dart';
+import '../workflows/framework.dart';
 import 'item.dart';
+import 'item_card.dart';
 import 'item_detail_page.dart';
 
 class ItemsPage extends StatefulWidget {
-  const ItemsPage({super.key});
+  const ItemsPage({super.key, this.ownerId, this.onCreate, this.admin = false});
+  final String? ownerId;
+  final VoidCallback? onCreate;
+  final bool admin;
   @override
   State<ItemsPage> createState() => _ItemsPageState();
 }
 
 class _ItemsPageState extends State<ItemsPage> {
-  static const _pageSize = 20;
-  final List<Item> _items = [];
-  DocumentSnapshot<Map<String, dynamic>>? _cursor;
-  String? _type;
-  String? _error;
-  bool _loading = false;
-  bool _hasMore = true;
-
+  final _search = TextEditingController(), _items = <Item>[];
+  String? _cursor, _type, _category, _district, _status, _from, _to, _error;
+  bool _loading = false, _more = false;
+  Timer? _debounce;
+  int _generation = 0;
   @override
   void initState() {
     super.initState();
-    _load(reset: true);
+    _load(true);
   }
 
-  Future<void> _load({bool reset = false}) async {
-    if (_loading) {
+  @override
+  void dispose() {
+    _search.dispose();
+    _debounce?.cancel();
+    super.dispose();
+  }
+
+  Future<void> _load(bool reset) async {
+    if (_loading && !reset) {
+      return;
+    }
+    final generation = reset ? ++_generation : _generation;
+    if (_search.text.trim().isNotEmpty && _search.text.trim().length < 3) {
+      setState(() {
+        _error = 'Хайлтын үг 3-аас доошгүй тэмдэгттэй байна.';
+        _loading = false;
+        _items.clear();
+      });
       return;
     }
     setState(() {
@@ -36,202 +56,324 @@ class _ItemsPageState extends State<ItemsPage> {
       if (reset) {
         _items.clear();
         _cursor = null;
-        _hasMore = true;
       }
     });
     try {
-      Query<Map<String, dynamic>> query = FirebaseFirestore.instance
-          .collection('items')
-          .where('isHidden', isEqualTo: false);
-      if (_type != null) {
-        query = query.where('type', isEqualTo: _type);
-      }
-      query = query.orderBy('createdAt', descending: true).limit(_pageSize);
-      if (_cursor != null) {
-        query = query.startAfterDocument(_cursor!);
-      }
-      // Server-only paging avoids treating an incomplete offline cache as the last page.
-      final result = await query.get(const GetOptions(source: Source.server));
-      final parsed = result.docs.map((doc) => Item.fromFirestore(doc)).toList();
-      if (!mounted) {
-        return;
-      }
-      setState(() {
-        final existingIds = _items.map((item) => item.id).toSet();
-        _items.addAll(parsed.where((item) => !existingIds.contains(item.id)));
-        if (result.docs.isNotEmpty) {
-          _cursor = result.docs.last;
-        }
-        _hasMore = result.docs.length == _pageSize;
+      final r = await Api.shared.run('listItems', {
+        'ownerOnly': widget.ownerId != null,
+        'admin': widget.admin,
+        'query': _search.text,
+        'type': _type,
+        'category': _category,
+        'district': _district,
+        'status': _status,
+        'from': _from,
+        'to': _to,
+        'cursor': reset ? null : _cursor,
       });
-    } on FirebaseException catch (e) {
-      if (mounted) {
-        setState(
-          () => _error = switch (e.code) {
-            'failed-precondition' => 'Хайлтын index бэлэн болоогүй байна. Firebase Console-ийн Indexes хэсгийг шалгана уу.',
-            'permission-denied' => 'Зарын жагсаалт унших эрхгүй байна. Нэвтрэлт болон Rules-ээ шалгана уу.',
-            'unavailable' =>
-              'Интернет холболт эсвэл үйлчилгээ боломжгүй байна.',
-            _ => 'Зар татаж чадсангүй (${e.code}).',
-          },
-        );
+      if (mounted && generation == _generation) {
+        setState(() {
+          final ids = _items.map((i) => i.id).toSet();
+          _items.addAll(
+            jsonRows(r['items'])
+                .map(Item.fromJson)
+                .where((i) => !ids.contains(i.id)),
+          );
+          _cursor = r['cursor'] as String?;
+          _more = r['hasMore'] == true;
+        });
       }
-    } catch (_) {
-      if (mounted) {
-        setState(
-          () => _error = 'Зар татаж чадсангүй. Өгөгдлийн формат болон холболтоо шалгана уу.',
-        );
+    } catch (e) {
+      if (mounted && generation == _generation) {
+        setState(() => _error = errorText(e));
       }
     } finally {
-      if (mounted) {
+      if (mounted && generation == _generation) {
         setState(() => _loading = false);
       }
     }
   }
 
-  void _filter(String? type) {
-    if (_loading || _type == type) {
-      return;
-    }
-    setState(() => _type = type);
-    _load(reset: true);
+  void _reset() {
+    _debounce?.cancel();
+    _load(true);
   }
 
-  Future<void> _create() async {
-    final created = await Navigator.of(context)
-        .push<bool>(MaterialPageRoute(builder: (_) => const CreateItemPage()));
-    if (created == true && mounted) {
-      await _load(reset: true);
+  Future<void> _filters() async {
+    String? district = _district, status = _status, from = _from, to = _to;
+    final result = await showModalBottomSheet<bool>(
+      context: context,
+      isScrollControlled: true,
+      useSafeArea: true,
+      builder: (c) => StatefulBuilder(
+        builder: (c, setSheet) => SingleChildScrollView(
+          padding: const EdgeInsets.all(24),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Text(
+                'Хайлтаа нарийвчлах',
+                style: Theme.of(c).textTheme.headlineSmall,
+              ),
+              const SizedBox(height: 20),
+              DropdownButtonFormField<String>(
+                initialValue: district ?? '',
+                isExpanded: true,
+                decoration: const InputDecoration(labelText: 'Дүүрэг'),
+                items: [
+                  const DropdownMenuItem(value: '', child: Text('Бүх дүүрэг')),
+                  for (final d in itemDistricts)
+                    DropdownMenuItem(value: d, child: Text(d)),
+                ],
+                onChanged: (v) => setSheet(() => district = v == '' ? null : v),
+              ),
+              const SizedBox(height: 16),
+              DropdownButtonFormField<String>(
+                initialValue: status ?? '',
+                isExpanded: true,
+                decoration: const InputDecoration(labelText: 'Төлөв'),
+                items: [
+                  const DropdownMenuItem(
+                    value: '',
+                    child: Text('Бүх идэвхтэй'),
+                  ),
+                  for (final s
+                      in widget.admin || widget.ownerId != null
+                          ? [
+                              'open',
+                              'claimed',
+                              'verified',
+                              'returned',
+                              'expired',
+                              if (widget.admin) 'hidden',
+                            ]
+                          : ['open', 'claimed', 'verified'])
+                    DropdownMenuItem(value: s, child: Text(statusLabel(s))),
+                ],
+                onChanged: (v) => setSheet(() => status = v == '' ? null : v),
+              ),
+              const SizedBox(height: 16),
+              OutlinedButton.icon(
+                icon: const Icon(Icons.date_range),
+                label: Text(from == null ? 'Огнооны хүрээ' : '$from → $to'),
+                onPressed: () async {
+                  final range = await showDateRangePicker(
+                    context: c,
+                    firstDate: DateTime(2000),
+                    lastDate: DateTime.now(),
+                  );
+                  if (range != null) {
+                    setSheet(() {
+                      from = range.start.toIso8601String().substring(0, 10);
+                      to = range.end.toIso8601String().substring(0, 10);
+                    });
+                  }
+                },
+              ),
+              TextButton(
+                onPressed: () => setSheet(() {
+                  district = null;
+                  status = null;
+                  from = null;
+                  to = null;
+                }),
+                child: const Text('Цэвэрлэх'),
+              ),
+              FilledButton(
+                onPressed: () => Navigator.pop(c, true),
+                child: const Text('Шүүлтүүр хэрэглэх'),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+    if (result == true && mounted) {
+      setState(() {
+        _district = district;
+        _status = status;
+        _from = from;
+        _to = to;
+      });
+      _reset();
     }
   }
 
   @override
   Widget build(BuildContext context) => Scaffold(
     appBar: AppBar(
-      title: const Text('Зарууд'),
+      title: widget.admin
+          ? const Text('Зарын хяналт')
+          : widget.ownerId != null
+          ? const Text('Миний зарууд')
+          : const Brand(),
       actions: [
         IconButton(
           tooltip: 'Шинэчлэх',
-          onPressed: _loading ? null : () => _load(reset: true),
+          onPressed: _reset,
           icon: const Icon(Icons.refresh),
         ),
       ],
     ),
-    floatingActionButton: FloatingActionButton.extended(
-      onPressed: _loading ? null : _create,
-      icon: const Icon(Icons.add),
-      label: const Text('Зар нэмэх'),
-    ),
-    body: Column(
-      children: [
-        Padding(
-          padding: const EdgeInsets.all(12),
-          child: Wrap(
-            spacing: 8,
-            children: [
-              ChoiceChip(
-                label: const Text('Бүгд'),
-                selected: _type == null,
-                onSelected: _loading ? null : (_) => _filter(null),
-              ),
-              ChoiceChip(
-                label: const Text('Гээсэн'),
-                selected: _type == 'lost',
-                onSelected: _loading ? null : (_) => _filter('lost'),
-              ),
-              ChoiceChip(
-                label: const Text('Олсон'),
-                selected: _type == 'found',
-                onSelected: _loading ? null : (_) => _filter('found'),
-              ),
-            ],
-          ),
-        ),
-        Expanded(
-          child: RefreshIndicator(
-            onRefresh: () => _load(reset: true),
-            child: ListView.builder(
-              physics: const AlwaysScrollableScrollPhysics(),
-              padding: const EdgeInsets.fromLTRB(16, 0, 16, 100),
-              itemCount: _items.length + 1,
-              itemBuilder: (context, index) {
-                if (index == _items.length) {
-                  if (_loading) {
-                    return const Padding(
-                      padding: EdgeInsets.all(24),
-                      child: Center(child: CircularProgressIndicator()),
-                    );
-                  }
-                  if (_error != null) {
-                    return Padding(
-                      padding: const EdgeInsets.all(16),
-                      child: Column(
-                        children: [
-                          Text(
-                            _error!,
-                            style: TextStyle(
-                              color: Theme.of(context).colorScheme.error,
-                            ),
-                          ),
-                          TextButton(
-                            onPressed: () => _load(),
-                            child: const Text('Дахин оролдох'),
-                          ),
-                        ],
-                      ),
-                    );
-                  }
-                  if (_items.isEmpty) {
-                    return const Padding(
-                      padding: EdgeInsets.all(32),
-                      child: Center(
-                        child: Text('Энэ төрөлд зар одоогоор алга.'),
-                      ),
-                    );
-                  }
-                  if (_hasMore) {
-                    return TextButton(
-                      onPressed: () => _load(),
-                      child: const Text('Дараагийн 20 зар'),
-                    );
-                  }
-                  return const Padding(
-                    padding: EdgeInsets.all(16),
-                    child: Center(child: Text('Бүх зарыг харууллаа.')),
-                  );
-                }
-                final item = _items[index];
-                return Card(
-                  child: ListTile(
-                    leading: Icon(
-                      item.type == 'lost'
-                          ? Icons.search
-                          : Icons.inventory_2_outlined,
-                    ),
-                    title: Text(
-                      item.title,
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                    subtitle: Text(
-                      '${item.type == 'lost' ? 'Гээсэн' : 'Олсон'} • ${item.category}\n'
-                      '${item.district} • ${item.placeName}',
-                      maxLines: 3,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                    trailing: const Icon(Icons.chevron_right),
-                    onTap: () => Navigator.of(context).push(
-                      MaterialPageRoute(
-                        builder: (_) => ItemDetailPage(itemId: item.id),
-                      ),
+    body: ContentWidth(
+      width: 1040,
+      child: RefreshIndicator(
+        onRefresh: () => _load(true),
+        child: ListView(
+          physics: const AlwaysScrollableScrollPhysics(),
+          padding: const EdgeInsets.all(20),
+          children: [
+            Text(
+              widget.ownerId == null
+                  ? 'Эзнээ олох жижиг тус'
+                  : 'Таны нийтэлсэн зарууд',
+              style: Theme.of(context).textTheme.headlineMedium,
+            ),
+            const SizedBox(height: 20),
+            Row(
+              children: [
+                Expanded(
+                  child: TextField(
+                    controller: _search,
+                    textInputAction: TextInputAction.search,
+                    onSubmitted: (_) => _reset(),
+                    onChanged: (_) {
+                      _debounce?.cancel();
+                      _debounce = Timer(
+                        const Duration(milliseconds: 400),
+                        _reset,
+                      );
+                    },
+                    decoration: const InputDecoration(
+                      labelText: 'Эд зүйлийн нэр, тайлбар',
+                      prefixIcon: Icon(Icons.search),
                     ),
                   ),
+                ),
+                const SizedBox(width: 8),
+                IconButton.filledTonal(
+                  tooltip: 'Шүүлтүүр',
+                  onPressed: _filters,
+                  icon: const Icon(Icons.tune),
+                ),
+              ],
+            ),
+            const SizedBox(height: 16),
+            Wrap(
+              spacing: 8,
+              children: [
+                for (final t in <String?>[null, 'lost', 'found'])
+                  ChoiceChip(
+                    label: Text(
+                      t == null
+                          ? 'Бүгд'
+                          : t == 'lost'
+                          ? 'Гээсэн'
+                          : 'Олсон',
+                    ),
+                    selected: _type == t,
+                    onSelected: (_) {
+                      setState(() => _type = t);
+                      _reset();
+                    },
+                  ),
+              ],
+            ),
+            const SizedBox(height: 12),
+            SingleChildScrollView(
+              scrollDirection: Axis.horizontal,
+              child: Row(
+                children: [
+                  for (final cat in itemCategories)
+                    Padding(
+                      padding: const EdgeInsets.only(right: 8),
+                      child: FilterChip(
+                        avatar: Icon(categoryIcon(cat), size: 18),
+                        label: Text(cat),
+                        selected: _category == cat,
+                        onSelected: (_) {
+                          setState(
+                            () => _category = _category == cat ? null : cat,
+                          );
+                          _reset();
+                        },
+                      ),
+                    ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 20),
+            if (_district != null || _from != null || _status != null)
+              Padding(
+                padding: const EdgeInsets.only(bottom: 16),
+                child: InfoBanner(
+                  text: [
+                    ?_district,
+                    if (_from != null) '$_from → $_to',
+                    if (_status != null) statusLabel(_status),
+                  ].join(' · '),
+                ),
+              ),
+            LayoutBuilder(
+              builder: (c, b) {
+                final n = b.maxWidth >= 880
+                        ? 3
+                        : b.maxWidth >= 570
+                        ? 2
+                        : 1,
+                    w = (b.maxWidth - (n - 1) * 16) / n;
+                return Wrap(
+                  spacing: 16,
+                  runSpacing: 16,
+                  children: [
+                    for (final item in _items)
+                      SizedBox(
+                        width: w,
+                        child: ItemCard(
+                          item: item,
+                          onTap: () async {
+                            await openPage(
+                              context,
+                              ItemDetailPage(itemId: item.id),
+                            );
+                            if (mounted) {
+                              _reset();
+                            }
+                          },
+                        ),
+                      ),
+                  ],
                 );
               },
             ),
-          ),
+            if (_loading)
+              const Padding(
+                padding: EdgeInsets.all(24),
+                child: Center(child: CircularProgressIndicator()),
+              ),
+            if (_error != null)
+              StateMessage(
+                title: 'Заруудыг уншиж чадсангүй',
+                message: _error!,
+                action: 'Дахин оролдох',
+                onAction: _reset,
+              ),
+            if (!_loading && _error == null && _items.isEmpty)
+              StateMessage(
+                title: 'Тохирох зар алга',
+                message: 'Өөр үг эсвэл шүүлтүүр сонгоорой.',
+                action: widget.onCreate == null ? null : 'Зар нэмэх',
+                onAction: widget.onCreate,
+              ),
+            if (_more && !_loading)
+              OutlinedButton(
+                onPressed: () => _load(false),
+                child: const Text('Дараагийн зарууд'),
+              ),
+          ],
         ),
-      ],
+      ),
     ),
   );
 }

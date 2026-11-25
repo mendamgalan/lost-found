@@ -1,9 +1,16 @@
+import '../workflows/account.dart';
+import '../workflows/admin.dart';
+import '../workflows/framework.dart';
+import '../services/push_service.dart';
+
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+// Keep compatibility with the project's Flutter 3.47 Android baseline.
+// ignore: deprecated_member_use
 import 'package:flutter/material.dart';
 
-import '../items/items_page.dart';
-import '../items/create_item_page.dart';
+import '../core/ui.dart';
+import '../core/app_theme.dart';
 
 class ProfilePage extends StatefulWidget {
   const ProfilePage({super.key, required this.user});
@@ -42,7 +49,7 @@ class _ProfilePageState extends State<ProfilePage> {
     if (!_form.currentState!.validate()) return;
     if (!_consent) {
       setState(
-        () => _error = 'Мэдээлэл ашиглах нөхцөлтэй танилцаж зөвшөөрнө үү.',
+        () => _error = 'Мэдээлэл ашиглах зориулалтыг уншиж зөвшөөрнө үү.',
       );
       return;
     }
@@ -60,17 +67,46 @@ class _ProfilePageState extends State<ProfilePage> {
         'createdAt': FieldValue.serverTimestamp(),
       });
     } catch (_) {
-      if (mounted)
+      if (mounted) {
         setState(
-          () => _error = 'Хадгалж чадсангүй. Интернет болон Firestore Rules-ээ шалгаад дахин оролдоно уу.',
+          () => _error = 'Мэдээллээ хадгалж чадсангүй. Холболтоо шалгаад дахин оролдоно уу.',
         );
+      }
     } finally {
       if (mounted) setState(() => _busy = false);
     }
   }
 
+  Future<void> _confirmLogout() async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Бүртгэлээс гарах уу?'),
+        content: const Text(
+          'Та дараа нь цахим шуудан, нууц үгээрээ дахин нэвтрэх боломжтой.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Болих'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('Гарах'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed == true && mounted) await _logout();
+  }
+
   Future<void> _logout() async {
+    if (_busy) {
+      return;
+    }
+    setState(() => _busy = true);
     try {
+      await PushService.shared.logout();
       await FirebaseAuth.instance.signOut();
     } catch (_) {
       if (mounted) {
@@ -79,6 +115,32 @@ class _ProfilePageState extends State<ProfilePage> {
             content: Text('Гарах үйлдэл амжилтгүй. Дахин оролдоно уу.'),
           ),
         );
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _busy = false);
+      }
+    }
+  }
+
+  Future<void> _push() async {
+    try {
+      final enabled = await PushService.shared.enable();
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              enabled
+                  ? 'Мэдэгдэл идэвхжлээ.'
+                  : 'Төхөөрөмжийн мэдэгдлийн тохиргоог шалгана уу.',
+            ),
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context)
+            .showSnackBar(SnackBar(content: Text(errorText(e))));
       }
     }
   }
@@ -89,7 +151,7 @@ class _ProfilePageState extends State<ProfilePage> {
       title: const Text('Миний бүртгэл'),
       actions: [
         TextButton(
-          onPressed: _busy ? null : _logout,
+          onPressed: _busy ? null : _confirmLogout,
           child: const Text('Гарах'),
         ),
       ],
@@ -102,67 +164,165 @@ class _ProfilePageState extends State<ProfilePage> {
             child: Padding(
               padding: EdgeInsets.all(24),
               child: Text(
-                'Профайл унших эрх эсвэл холболтын алдаа. Firestore Rules байршуулсан эсэхээ шалгана уу.',
+                'Профайлыг уншиж чадсангүй. Интернет холболтоо шалгаж дахин нэвтэрнэ үү.',
               ),
             ),
           );
         }
-        if (!snapshot.hasData)
+        if (!snapshot.hasData) {
           return const Center(child: CircularProgressIndicator());
+        }
         final data = snapshot.data!.data();
         if (data != null) {
-          return ListView(
-            padding: const EdgeInsets.all(24),
-            children: [
-              const Icon(
-                Icons.check_circle_outline,
-                size: 64,
-                color: Colors.teal,
-              ),
-              const SizedBox(height: 20),
-              Text(
-                'Сайн байна уу, ${data['name']}',
-                style: Theme.of(context).textTheme.headlineSmall,
-              ),
-              ListTile(
-                leading: const Icon(Icons.email_outlined),
-                title: Text(data['email'] as String),
-              ),
-              ListTile(
-                leading: const Icon(Icons.phone_outlined),
-                title: Text(data['phone'] as String),
-              ),
-              const SizedBox(height: 16),
-              FilledButton.icon(
-                onPressed: () {
-                  Navigator.of(context).push(
-                    MaterialPageRoute<bool>(
-                      builder: (_) => const CreateItemPage(),
-                    ),
-                  );
-                },
-                icon: const Icon(Icons.add),
-                label: const Text('Зар нэмэх'),
-              ),
-              const SizedBox(height: 12),
-              OutlinedButton.icon(
-                onPressed: () {
-                  Navigator.of(context).push(
-                    MaterialPageRoute<void>(builder: (_) => const ItemsPage()),
-                  );
-                },
-                icon: const Icon(Icons.view_list_outlined),
-                label: const Text('Зарууд харах'),
-              ),
-              const Card(
-                child: Padding(
-                  padding: EdgeInsets.all(20),
-                  child: Text(
-                    'Бүртгэлийн эхний алхам бэлэн. Дараагийн алхамд Lost/Found зарын хэсгийг нэмнэ.',
+          final name = data['name'] as String? ?? 'Хэрэглэгч';
+          return ContentWidth(
+            child: ListView(
+              padding: const EdgeInsets.all(24),
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(24),
+                  decoration: BoxDecoration(
+                    color: AppColors.teal,
+                    borderRadius: BorderRadius.circular(26),
+                  ),
+                  child: Column(
+                    children: [
+                      CircleAvatar(
+                        radius: 36,
+                        backgroundColor: AppColors.mint,
+                        child: Text(
+                          name.isEmpty
+                              ? '?'
+                              : String.fromCharCode(name.runes.first),
+                          style: const TextStyle(
+                            fontSize: 30,
+                            fontWeight: FontWeight.w800,
+                            color: AppColors.teal,
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 16),
+                      Text(
+                        name,
+                        textAlign: TextAlign.center,
+                        style: Theme.of(context).textTheme.headlineSmall
+                            ?.copyWith(color: Colors.white),
+                      ),
+                      const SizedBox(height: 6),
+                      const Text(
+                        'Бусдад туслах жижиг алхам бүр үнэ цэнтэй.',
+                        textAlign: TextAlign.center,
+                        style: TextStyle(color: Color(0xFFDFEEE8)),
+                      ),
+                    ],
                   ),
                 ),
-              ),
-            ],
+                const SizedBox(height: 28),
+                Text(
+                  'Хувийн мэдээлэл',
+                  style: Theme.of(context).textTheme.titleLarge,
+                ),
+                const SizedBox(height: 12),
+                Card(
+                  child: Column(
+                    children: [
+                      ListTile(
+                        leading: const Icon(Icons.email_outlined),
+                        title: const Text('Цахим шуудан'),
+                        subtitle: Text(data['email'] as String? ?? ''),
+                      ),
+                      const Divider(indent: 16, endIndent: 16, height: 1),
+                      ListTile(
+                        leading: const Icon(Icons.phone_outlined),
+                        title: const Text('Утас'),
+                        subtitle: Text(data['phone'] as String? ?? ''),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 20),
+                const InfoBanner(
+                  text: 'Холбоо барих мэдээлэл баталгаажсан хоёр талд нээгдэнэ. Нууц онцлогоо нийтийн тайлбарт бүү бичээрэй.',
+                ),
+                const SizedBox(height: 24),
+                Card(
+                  child: ListTile(
+                    leading: const Icon(Icons.help_outline),
+                    title: const Text('Хэрхэн ажилладаг вэ?'),
+                    trailing: const Icon(Icons.chevron_right),
+                    onTap: () => showModalBottomSheet<void>(
+                      context: context,
+                      useSafeArea: true,
+                      isScrollControlled: true,
+                      builder: (context) => const SingleChildScrollView(
+                        padding: EdgeInsets.all(24),
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              'Олсон зүйлээ эзэнд нь хүргэе',
+                              style: TextStyle(
+                                fontSize: 22,
+                                fontWeight: FontWeight.w700,
+                              ),
+                            ),
+                            SizedBox(height: 20),
+                            Text(
+                              '1. Гээсэн эсвэл олсон зарыг хайж үзээрэй.\n\n2. Зар нийтлэхдээ байршил, огноо, ялгах шинжийг тодорхой бичээрэй.\n\n3. Нууц онцлогийг зөвхөн тусгай талбарт хадгална.\n\n4. Эд зүйлийг буцаасны дараа өөрийн зарын дэлгэрэнгүйгээс “Буцаан олгосон” гэж тэмдэглээрэй.\n\nЭзэмшигчийн нэхэмжлэл, баталгаажуулалт болон апп доторх харилцаа хараахан нэмэгдээгүй.',
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 20),
+                OutlinedButton.icon(
+                  onPressed: () => openPage(
+                    context,
+                    profileForm(name, data['phone'] as String? ?? ''),
+                  ),
+                  icon: const Icon(Icons.edit_outlined),
+                  label: const Text('Профайл засах'),
+                ),
+                const SizedBox(height: 12),
+                OutlinedButton.icon(
+                  onPressed: () =>
+                      openPage(context, const PasswordChangePage()),
+                  icon: const Icon(Icons.lock_outline),
+                  label: const Text('Нууц үг солих'),
+                ),
+                const SizedBox(height: 12),
+                OutlinedButton.icon(
+                  onPressed: _push,
+                  icon: const Icon(Icons.notifications_active_outlined),
+                  label: const Text('Мэдэгдэл идэвхжүүлэх'),
+                ),
+                FutureBuilder<IdTokenResult>(
+                  future: widget.user.getIdTokenResult(),
+                  builder: (c, s) => s.data?.claims?['admin'] == true
+                      ? Padding(
+                          padding: const EdgeInsets.only(top: 12),
+                          child: FilledButton.icon(
+                            onPressed: () =>
+                                openPage(context, const AdminPage()),
+                            icon: const Icon(
+                              Icons.admin_panel_settings_outlined,
+                            ),
+                            label: const Text('Удирдлага'),
+                          ),
+                        )
+                      : const SizedBox.shrink(),
+                ),
+                const SizedBox(height: 24),
+                OutlinedButton.icon(
+                  onPressed: _busy ? null : _confirmLogout,
+                  icon: const Icon(Icons.logout),
+                  label: const Text('Бүртгэлээс гарах'),
+                ),
+              ],
+            ),
           );
         }
         return SingleChildScrollView(
@@ -201,9 +361,8 @@ class _ProfilePageState extends State<ProfilePage> {
                 const SizedBox(height: 20),
                 const Text(
                   'Нэр, email, утсыг бүртгэл болон эд зүйл хүлээлцэхэд ашиглана. '
-                  'Одоогийн хувилбарт зөвхөн та өөрийн мэдээллийг харна. '
-                  'Claim боломж нэмэгдэхэд Verified болсон хоёр талд email, утсыг харуулна. '
-                  'Хичээлийн demo тул бодит эмзэг мэдээлэл бүү оруулаарай.',
+                  'Одоогоор зөвхөн та өөрийн мэдээллийг харна. '
+                  'Холбоо барих мэдээллийг зарын нийтийн тайлбарт харуулахгүй.',
                 ),
                 CheckboxListTile(
                   contentPadding: EdgeInsets.zero,

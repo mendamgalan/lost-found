@@ -1,0 +1,89 @@
+(node:5) [UNDICI-EHPA] Warning: EnvHttpProxyAgent is experimental, expect them to change at any time.
+(Use `node --trace-warnings ...` to show where the warning was created)
+Warning: EnvHttpProxyAgent is experimental, expect them to change at any time.
+    at new EnvHttpProxyAgent (/workspace/scratch/976983933668/lost-found/tools/firestore-tests/node_modules/undici/lib/dispatcher/env-http-proxy-agent.js:26:15)
+    at new undici.ProxyAgent (/workspace/scratch/976983933668/lost-found/scripts/emulator-cli.cjs:6:7)
+    at Client.doRequest (/workspace/scratch/976983933668/lost-found/tools/firestore-tests/node_modules/firebase-tools/lib/apiv2.js:244:39)
+    at Client.request (/workspace/scratch/976983933668/lost-found/tools/firestore-tests/node_modules/firebase-tools/lib/apiv2.js:159:31)
+    at Client.get (/workspace/scratch/976983933668/lost-found/tools/firestore-tests/node_modules/firebase-tools/lib/apiv2.js:104:21)
+    at fetchMOTD (/workspace/scratch/976983933668/lost-found/tools/firestore-tests/node_modules/firebase-tools/lib/fetchMOTD.js:37:11)
+    at cli (/workspace/scratch/976983933668/lost-found/tools/firestore-tests/node_modules/firebase-tools/lib/bin/cli.js:70:31)
+    at Object.<anonymous> (/workspace/scratch/976983933668/lost-found/tools/firestore-tests/node_modules/firebase-tools/lib/bin/firebase.js:27:5)
+    at Module._compile (node:internal/modules/cjs/loader:1929:14)
+    at Object..js (node:internal/modules/cjs/loader:2060:10)
+i  emulators: Starting emulators: firestore, storage
+i  emulators: Detected demo project ID "demo-lost-found", emulated services will use a demo configuration and attempts to access non-emulated services for this project will fail.
+i  firestore: Firestore Emulator logging to firestore-debug.log
+✔  firestore: Firestore Emulator was started in standard edition.
+✔  firestore: Firestore Emulator UI websocket is running on 9150.
+i  Running script: npm --prefix tools/firestore-tests test && npm --prefix functions test
+npm warn Unknown env config "http-proxy". This will stop working in the next major version of npm. See `npm help npmrc` for supported config options.
+
+> test
+> node --test rules.test.mjs
+
+✔ only owner/admin read item secrets (1682.7731ms)
+✔ claim proof and profile reads are participant scoped (226.531869ms)
+[2026-11-20T19:23:36.300Z]  @firebase/firestore: Firestore (12.19.0): GrpcConnection RPC 'Write' stream 0x80e5f945 error. Code: 7 Message: 7 PERMISSION_DENIED:
+false for 'update' @ L18, false for 'update' @ L24
+[2026-11-20T19:23:36.338Z]  @firebase/firestore: Firestore (12.19.0): GrpcConnection RPC 'Write' stream 0x80e5f946 error. Code: 7 Message: 7 PERMISSION_DENIED:
+false for 'create' @ L20, false for 'create' @ L24, false for 'update' @ L20, false for 'update' @ L24
+[2026-11-20T19:23:36.369Z]  @firebase/firestore: Firestore (12.19.0): GrpcConnection RPC 'Write' stream 0x80e5f947 error. Code: 7 Message: 7 PERMISSION_DENIED:
+false for 'create' @ L23, false for 'create' @ L24, false for 'update' @ L23, false for 'update' @ L24
+✔ all business changes require trusted functions, including audit (155.361527ms)
+[2026-11-20T19:23:36.466Z]  @firebase/firestore: Firestore (12.19.0): GrpcConnection RPC 'Write' stream 0x80e5f949 error. Code: 7 Message: 7 PERMISSION_DENIED:
+evaluation error at L8:21 for 'create' @ L8, false for 'create' @ L24, false for 'update' @ L16, false for 'update' @ L24, false for 'create' @ L8, false for 'create' @ L24
+[2026-11-20T19:23:36.497Z]  @firebase/firestore: Firestore (12.19.0): GrpcConnection RPC 'Write' stream 0x80e5f94a error. Code: 7 Message: 7 PERMISSION_DENIED:
+false for 'update' @ L16, false for 'update' @ L24
+✔ profile create cannot self-assign admin (127.816789ms)
+[2026-11-20T19:23:36.670Z]  @firebase/firestore: Firestore (12.19.0): GrpcConnection RPC 'Write' stream 0x80e5f94e error. Code: 7 Message: 7 PERMISSION_DENIED:
+false for 'update' @ L22, false for 'update' @ L24
+✔ notifications are private to their recipient (172.652857ms)
+✔ guest browses visible items while moderation restricts hidden ones (131.021798ms)
+✔ private proof upload and read enforce UID and participant (471.877895ms)
+✔ Storage rejects non-images and images at or above 5MB (289.369559ms)
+✔ public photo access follows item moderation (172.272689ms)
+✔ CSV export is readable only by its owning admin (82.093496ms)
+ℹ tests 10
+ℹ suites 0
+ℹ pass 10
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 3887.200855
+npm warn Unknown env config "http-proxy". This will stop working in the next major version of npm. See `npm help npmrc` for supported config options.
+
+> test
+> node --test test/*.test.cjs
+
+✔ weighted matching follows 30/30/20/20 and ignores secrets (238.026971ms)
+✔ public create/search/edit/delete never expose item secrets (192.644112ms)
+✔ duplicate concurrent claims create one request and one pending count (2705.41274ms)
+✔ concurrent verification produces exactly one winner (3256.232557ms)
+✔ contacts are restricted to verified two parties (199.937381ms)
+✔ self claim, lost claim, unauthorized edit and active deletion are blocked (187.862624ms)
+✔ withdraw reopens item and permits a later request (145.189556ms)
+✔ rejection needs reason and only claimant/admin can create/resolve appeal (207.849682ms)
+✔ admin appeal atomically replaces an incorrect unreturned winner (234.945306ms)
+✔ handover and returned follow a verified request, closed items reject claims (181.40151ms)
+✔ notifications and bulk read never affect another recipient (167.469985ms)
+✔ matching notifications persist and are idempotent (167.10189ms)
+✔ 30 days of inactivity excludes item and expires pending requests (128.369701ms)
+✔ profile, moderation and statistics enforce authority (235.307555ms)
+✔ Ulaanbaatar calendar accepts today before UTC midnight (57.692771ms)
+✔ admin report, audit search and hidden filter cover web controls (126.069369ms)
+ℹ tests 16
+ℹ suites 0
+ℹ pass 16
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 8809.361855
+✔  Script exited successfully (code 0)
+i  emulators: Shutting down emulators.
+i  firestore: Stopping Firestore Emulator
+i  storage: Stopping Storage Emulator
+i  hub: Stopping emulator hub
+i  logging: Stopping Logging Emulator

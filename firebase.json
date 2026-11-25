@@ -1,1 +1,63 @@
-{"firestore":{"rules":"firestore.rules"},"flutter":{"platforms":{"android":{"default":{"projectId":"lost-found-e1221","appId":"1:805376853382:android:c6db11ee476debb654d807","fileOutput":"android/app/google-services.json"}},"dart":{"lib/firebase_options.dart":{"projectId":"lost-found-e1221","configurations":{"android":"1:805376853382:android:c6db11ee476debb654d807"}}}}}}
+{
+  "firestore": {
+    "rules": "firestore.rules",
+    "indexes": "firestore.indexes.json"
+  },
+  "flutter": {
+    "platforms": {
+      "android": {
+        "default": {
+          "projectId": "lost-found-e1221",
+          "appId": "1:805376853382:android:c6db11ee476debb654d807",
+          "fileOutput": "android/app/google-services.json"
+        }
+      },
+      "dart": {
+        "lib/firebase_options.dart": {
+          "projectId": "lost-found-e1221",
+          "configurations": {
+            "android": "1:805376853382:android:c6db11ee476debb654d807"
+          }
+        }
+      }
+    }
+  },
+  "emulators": {
+    "firestore": {
+      "host": "127.0.0.1",
+      "port": 8080
+    },
+    "ui": {
+      "enabled": false
+    },
+    "singleProjectMode": true,
+    "auth": {
+      "host": "127.0.0.1",
+      "port": 9099
+    },
+    "functions": {
+      "host": "127.0.0.1",
+      "port": 5001
+    },
+    "storage": {
+      "host": "127.0.0.1",
+      "port": 9199
+    }
+  },
+  "functions": [
+    {
+      "source": "functions",
+      "codebase": "default",
+      "runtime": "nodejs22",
+      "ignore": [
+        "node_modules",
+        ".git",
+        "test",
+        "*-debug.log"
+      ]
+    }
+  ],
+  "storage": {
+    "rules": "storage.rules"
+  }
+}

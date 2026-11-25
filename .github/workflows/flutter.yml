@@ -1,0 +1,37 @@
+name: Flutter checks
+on:
+  push:
+  pull_request:
+permissions:
+  contents: read
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.50.1'
+          channel: stable
+          cache: true
+      - run: flutter pub get
+      - run: dart format --output=none --set-exit-if-changed lib test
+      - run: flutter analyze
+      - run: flutter test
+  firestore-rules:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: tools/firestore-tests/package-lock.json
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+      - run: npm --prefix tools/firestore-tests ci
+      - run: npm --prefix functions ci
+      - run: node scripts/emulator-cli.cjs emulators:exec --only firestore,storage --project demo-lost-found 'npm --prefix tools/firestore-tests test && npm --prefix functions test'
+      - run: node scripts/emulator-cli.cjs emulators:exec --only auth,firestore,storage --project demo-lost-found 'node functions/test/callable.integration.cjs && node scripts/seed-demo.cjs'

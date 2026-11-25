@@ -67,3 +67,10 @@ android/key.properties
 # Service account credentials
 *service-account*.json
 *serviceAccountKey*.json
+# Local verification tooling
+node_modules/
+*-debug.log
+
+android/build/
+android/.kotlin/
+.emulator-data/
